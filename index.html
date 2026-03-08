@@ -2,498 +2,461 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全球冲突与战争新闻实时监控 (Google News 实时驱动)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>全球新闻实时雷达</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background-color: #0a0a0a; color: #fff; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        #map { height: 100%; width: 100%; z-index: 1; background-color: #050505; }
-        
-        #sidebar { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 50; }
-        .sidebar-open { transform: translateX(0); }
-        .sidebar-closed { transform: translateX(100%); }
-
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: #111827; }
-        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-
-        @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background-color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
-        .toast-enter { animation: slideInRight 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            /* 强制地图背景为白色 */
+            background: #ffffff !important; 
+        }
+
+        /* 隐藏地图版权信息使画面更干净 */
+        .leaflet-control-attribution {
+            display: none;
+        }
+
+        /* 发光圆点特效 */
+        .glow-dot {
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            opacity: 0.85;
+            transition: transform 0.2s, opacity 0.2s;
+        }
         
-        .leaflet-interactive { transition: fill-opacity 0.3s ease, fill-color 0.3s ease; }
-        .custom-div-icon { background: transparent; border: none; }
-        
-        .radar-ping { position: relative; }
-        .radar-ping::after {
-            content: ''; position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%); width: 100%; height: 100%;
-            border-radius: 50%; border: 1px solid rgba(239, 68, 68, 0.6);
-            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        .glow-dot:hover {
+            transform: scale(1.5);
+            opacity: 1;
+            z-index: 1000 !important;
+        }
+
+        /* 自定义滚动条 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c1c1c1; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8; 
+        }
+
+        /* 控制面板响应式 */
+        @media (max-width: 768px) {
+            #control-panel {
+                bottom: 20px;
+                top: auto;
+                left: 10px;
+                right: 10px;
+                width: auto;
+                max-height: 40vh;
+                overflow-y: auto;
+            }
         }
     </style>
 </head>
-<body class="flex flex-col h-screen relative">
+<body class="relative text-gray-800">
 
-    <header class="absolute top-0 left-0 right-0 h-16 bg-black/80 backdrop-blur-lg border-b border-gray-800 flex items-center justify-between px-6 z-40 shadow-md">
-        <div class="flex items-center gap-4">
-            <div class="relative flex h-5 w-5 justify-center items-center radar-ping">
-              <span class="relative inline-flex rounded-full h-3 w-3 bg-red-600 shadow-[0_0_10px_#ef4444]"></span>
+    <!-- 地图容器 -->
+    <div id="map"></div>
+
+    <!-- 左侧控制台/图例 -->
+    <div id="control-panel" class="absolute top-6 left-6 z-[1000] bg-white/90 backdrop-blur-md p-5 rounded-2xl shadow-xl w-80 max-w-[calc(100vw-40px)] border border-gray-100 transition-all">
+        <h1 class="text-xl font-bold mb-1 flex items-center gap-2">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            全球新闻雷达
+        </h1>
+        <p class="text-xs text-gray-500 mb-4">呈现最近20小时内的热点新闻分布</p>
+        
+        <div class="space-y-2 mb-5">
+            <h3 class="text-sm font-semibold text-gray-700">新闻分类 (颜色)</h3>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#ff0000] shadow-[0_0_8px_#ff0000] mr-2"></span>战争新闻</div>
+                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#0000ff] shadow-[0_0_8px_#0000ff] mr-2"></span>财经新闻</div>
+                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#00ff00] shadow-[0_0_8px_#00ff00] mr-2"></span>生物医疗</div>
+                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#ffd700] shadow-[0_0_8px_#ffd700] mr-2"></span>体育新闻</div>
+                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#000000] shadow-[0_0_8px_#000000] mr-2"></span>科技新闻</div>
+                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#b5651d] shadow-[0_0_8px_#b5651d] mr-2"></span>农业新闻</div>
+                <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-[#808080] shadow-[0_0_8px_#808080] mr-2"></span>其他新闻</div>
             </div>
-            <div>
-                <h1 class="text-xl font-black tracking-widest text-white flex items-center gap-2">
-                    GLOBAL DEFENSE MONITOR
-                    <span class="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-sm tracking-normal font-bold flex items-center gap-1">
-                        <i class="fa-brands fa-google"></i> NEWS LIVE
-                    </span>
-                </h1>
-                <p class="text-xs text-gray-400 font-mono tracking-wide mt-0.5" id="last-sync-time">正在连接卫星新闻节点...</p>
-            </div>
+            <p class="text-xs text-gray-400 mt-2">注：未识别地点的新闻集中在南极洲</p>
         </div>
-        <div class="flex flex-col items-end">
-            <span id="currentTime" class="text-sm text-gray-200 font-mono font-bold"></span>
-            <span class="text-[10px] text-green-500 font-bold animate-pulse" id="api-status">API CONNECTING</span>
-        </div>
-    </header>
 
-    <div id="map" class="flex-grow"></div>
-
-    <div class="absolute bottom-8 left-6 z-40 bg-black/80 backdrop-blur-md border border-gray-800 rounded-xl p-5 shadow-2xl w-64">
-        <h3 class="text-xs font-bold tracking-widest mb-4 text-gray-400 border-b border-gray-800 pb-2">THREAT LEVELS (威胁等级)</h3>
-        <div class="flex flex-col gap-3 text-sm font-medium">
-            <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-800/50 p-1 rounded transition" onclick="map.setZoom(3)">
-                <span class="w-3 h-3 rounded-full" style="background-color: #dc2626; box-shadow: 0 0 12px rgba(220,38,38,0.9);"></span>
-                <span class="text-gray-200">重大战争爆发 (Major)</span>
-            </div>
-            <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-800/50 p-1 rounded transition">
-                <span class="w-3 h-3 rounded-full" style="background-color: #3b82f6; box-shadow: 0 0 12px rgba(59,130,246,0.9);"></span>
-                <span class="text-gray-200">一般冲突/交火 (General)</span>
-            </div>
-            <div class="flex items-center gap-3 cursor-pointer hover:bg-gray-800/50 p-1 rounded transition">
-                <span class="w-3 h-3 rounded-full" style="background-color: #22c55e; box-shadow: 0 0 12px rgba(34,197,94,0.9);"></span>
-                <span class="text-gray-200">紧张局势/部署 (Minor)</span>
-            </div>
+        <div class="flex flex-col gap-3">
+            <button id="btn-fetch-live" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-xl shadow transition flex justify-center items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                拉取最新谷歌新闻 (所有板块)
+            </button>
+            <div id="status-text" class="text-xs text-center text-gray-500 h-4">当前展示：等待拉取数据...</div>
         </div>
     </div>
 
-    <div id="toast-container" class="absolute top-24 right-6 z-50 flex flex-col gap-4 w-80 pointer-events-none"></div>
-
-    <div id="sidebar" class="sidebar-closed absolute top-16 right-0 bottom-0 w-full md:w-[400px] bg-black/95 backdrop-blur-xl border-l border-gray-800 shadow-2xl flex flex-col z-40">
-        <div class="p-6 border-b border-gray-800 flex justify-between items-start bg-gradient-to-b from-gray-900/50 to-transparent">
+    <!-- 右侧边栏 -->
+    <div id="sidebar" class="fixed right-0 top-0 h-full w-full md:w-[400px] bg-white/95 backdrop-blur-xl shadow-[-10px_0_30px_rgba(0,0,0,0.1)] transform translate-x-full transition-transform duration-300 ease-out z-[2000] flex flex-col border-l border-gray-100">
+        <!-- 头部 -->
+        <div class="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
             <div>
-                <h2 id="sidebar-country-name" class="text-2xl font-black text-white flex items-center gap-3 mb-1">
-                    <i class="fa-solid fa-crosshairs text-gray-500"></i> 载入中...
-                </h2>
-                <div class="flex items-center gap-2 mt-2">
-                    <div id="sidebar-status-indicator" class="w-2.5 h-2.5 rounded-full bg-gray-500"></div>
-                    <span id="sidebar-status-text" class="text-xs font-bold tracking-widest text-gray-400 uppercase">STATUS PENDING</span>
-                </div>
+                <h2 id="sidebar-title" class="text-xl font-bold text-gray-800">地点新闻</h2>
+                <p id="sidebar-subtitle" class="text-sm text-gray-500 mt-1">相关报道</p>
             </div>
-            <button onclick="closeSidebar()" class="text-gray-500 hover:text-white transition-colors bg-gray-900 hover:bg-gray-800 rounded-full w-8 h-8 flex items-center justify-center">
-                <i class="fa-solid fa-xmark"></i>
+            <button id="close-sidebar" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
-        <div id="sidebar-news-list" class="flex-grow overflow-y-auto p-6 pb-12 flex flex-col gap-5"></div>
-    </div>
-
-    <div id="loading" class="absolute inset-0 bg-[#050505] z-[100] flex flex-col items-center justify-center transition-opacity duration-700">
-        <div class="relative flex justify-center items-center w-24 h-24 mb-6">
-            <div class="absolute inset-0 border-t-2 border-red-600 rounded-full animate-spin"></div>
-            <div class="absolute inset-2 border-r-2 border-blue-500 rounded-full animate-[spin_2s_linear_infinite_reverse]"></div>
-            <i class="fa-brands fa-google text-3xl text-gray-400"></i>
+        
+        <!-- 新闻列表内容区 -->
+        <div id="sidebar-content" class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+            <!-- 动态注入内容 -->
         </div>
-        <h2 class="text-xl font-bold tracking-widest text-white mb-2">拦截全球电讯中...</h2>
-        <p class="text-gray-500 text-sm font-mono" id="loading-status">Establishing connection to proxy cluster</p>
     </div>
 
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
-        let map;
-        let geojsonLayer;
-        let markersLayer; 
-        let currentOpenCountry = null;
-        let processedNews = new Set();
-        
-        let conflictData = {};
+        // ==========================================
+        // 配置数据
+        // ==========================================
 
-        // === 地理位置解析字典 ===
-        const geoDictionary = [
-            { keywords: ["乌克兰", "基辅", "敖德萨", "哈尔科夫", "利沃夫", "泽连斯基"], iso: "UKR", name: "乌克兰", lat: 50.45, lng: 30.52, level: "major" },
-            { keywords: ["俄罗斯", "莫斯科", "别尔哥罗德", "库尔斯克", "普京", "俄军"], iso: "RUS", name: "俄罗斯", lat: 55.75, lng: 37.61, level: "major" },
-            { keywords: ["以色列", "特拉维夫", "耶路撒冷", "以军", "海法", "内塔尼亚胡"], iso: "ISR", name: "以色列", lat: 31.76, lng: 35.21, level: "major" },
-            { keywords: ["加沙", "哈马斯", "拉法", "巴勒斯坦"], iso: "PSE", name: "巴勒斯坦", lat: 31.41, lng: 34.34, level: "major" },
-            { keywords: ["黎巴嫩", "贝鲁特", "真主党", "黎南部"], iso: "LBN", name: "黎巴嫩", lat: 33.89, lng: 35.50, level: "major" },
-            { keywords: ["伊朗", "德黑兰", "革命卫队"], iso: "IRN", name: "伊朗", lat: 35.68, lng: 51.38, level: "major" },
-            { keywords: ["也门", "胡塞", "萨那", "红海"], iso: "YEM", name: "也门", lat: 15.36, lng: 44.19, level: "general" },
-            { keywords: ["叙利亚", "大马士革", "阿勒颇"], iso: "SYR", name: "叙利亚", lat: 33.51, lng: 36.27, level: "general" },
-            { keywords: ["伊拉克", "巴格达", "美军基地"], iso: "IRQ", name: "伊拉克", lat: 33.31, lng: 44.36, level: "general" },
-            { keywords: ["苏丹", "喀土穆", "快速支援部队"], iso: "SDN", name: "苏丹", lat: 15.50, lng: 32.55, level: "general" },
-            { keywords: ["缅甸", "果敢", "若开", "缅军"], iso: "MMR", name: "缅甸", lat: 19.76, lng: 96.06, level: "minor" },
-            { keywords: ["朝鲜", "韩国", "平壤", "首尔", "半岛"], iso: "PRK", name: "朝鲜半岛区域", lat: 38.00, lng: 127.00, level: "minor" },
-            { keywords: ["台海", "台湾", "解放军", "巡航"], iso: "TWN", name: "中国台湾周边", lat: 23.69, lng: 120.96, level: "minor" }
-        ];
-
-        // 统一色彩管理（使用原生的 Hex 色值，防止 Tailwind CDN 丢弃动态生成的 class）
-        const configColors = {
-            major: { fill: '#dc2626', text: 'text-red-500', shadow: 'rgba(220,38,38,0.9)', label: '重大战争爆发 (MAJOR)' },
-            general: { fill: '#3b82f6', text: 'text-blue-400', shadow: 'rgba(59,130,246,0.9)', label: '一般冲突/军事行动 (GENERAL)' },
-            minor: { fill: '#22c55e', text: 'text-green-400', shadow: 'rgba(34,197,94,0.9)', label: '局部交火/对峙 (MINOR)' },
-            default: { fill: '#1a1a1a', border: '#333', text: 'text-gray-500', label: '无重大战事 (CLEAR)' }
+        // 分类及关键字配置
+        const CATEGORIES = {
+            war: { name: '战争新闻', color: '#ff0000', keywords: ['战争', '冲突', '导弹', '袭击', '军队', '俄乌', '伤亡', '武装', '击落', '军事', '防空', '加沙', '以军'] },
+            finance: { name: '财经新闻', color: '#0000ff', keywords: ['财经', '经济', '股市', '基金', '降息', '银行', '融资', 'A股', '纳斯达克', '财报', '股价', '央行', '美联储'] },
+            medical: { name: '生物医疗', color: '#00ff00', keywords: ['医疗', '医院', '病毒', '基因', '疫苗', '癌症', '疫情', '生物', '健康', '疾控', '制药'] },
+            sports: { name: '体育新闻', color: '#ffd700', keywords: ['体育', '足球', '篮球', '奥运', '夺冠', '锦标赛', 'NBA', '英超', '世界杯', '冠军', '联赛'] },
+            tech: { name: '科技新闻', color: '#000000', keywords: ['科技', '苹果', '华为', '微软', '芯片', 'AI', '人工智能', '算法', '互联网', '软件', '大模型', 'OpenAI', '特斯拉'] },
+            agri: { name: '农业新闻', color: '#b5651d', keywords: ['农业', '粮食', '农产品', '丰收', '种植', '农民', '小麦', '大豆', '农田', '畜牧'] },
+            other: { name: '其他新闻', color: '#808080', keywords: [] }
         };
 
-        // === 初始化功能 ===
-        document.addEventListener("DOMContentLoaded", () => {
-            updateClock();
-            setInterval(updateClock, 1000);
-            initMap();
-        });
+        // 地名词典与经纬度 (为避免多个新闻完全重叠，渲染时会加微小偏移)
+        const LOCATIONS = {
+            "北京": [39.9042, 116.4074], "上海": [31.2304, 121.4737], "广东": [23.1291, 113.2644], "深圳": [22.5431, 114.0579],
+            "香港": [22.3193, 114.1694], "台湾": [23.6978, 120.9605], "新疆": [43.7928, 87.6211],
+            "美国": [37.0902, -95.7129], "纽约": [40.7128, -74.0060], "华盛顿": [38.9072, -77.0369], "硅谷": [37.3875, -122.0575],
+            "俄罗斯": [61.5240, 105.3188], "莫斯科": [55.7558, 37.6173], "乌克兰": [48.3794, 31.1656], "基辅": [50.4501, 30.5234],
+            "日本": [36.2048, 138.2529], "东京": [35.6762, 139.6503], "韩国": [35.9078, 127.7669], "首尔": [37.5665, 126.9780],
+            "英国": [55.3781, -3.4360], "伦敦": [51.5074, -0.1278], "法国": [46.2276, 2.2137], "巴黎": [48.8566, 2.3522],
+            "德国": [51.1657, 10.4515], "柏林": [52.5200, 13.4050], "印度": [20.5937, 78.9629], "新德里": [28.6139, 77.2090],
+            "中东": [29.2985, 42.5510], "以色列": [31.0461, 34.8516], "加沙": [31.5017, 34.4668], "伊朗": [32.4279, 53.6880],
+            "澳大利亚": [-25.2744, 133.7751], "加拿大": [56.1304, -106.3468], "巴西": [-14.2350, -51.9253], "非洲": [8.7832, 34.5085]
+        };
 
-        function updateClock() {
-            const now = new Date();
-            document.getElementById('currentTime').innerText = now.toLocaleString('zh-CN', { hour12: false }) + " CST";
-        }
+        // 谷歌新闻（Google News）的各大板块 RSS 源
+        const GOOGLE_NEWS_FEEDS = [
+            "https://news.google.com/rss?hl=zh-CN&gl=CN&ceid=CN:zh-Hans", // 焦点新闻
+            "https://news.google.com/rss/headlines/section/topic/WORLD?hl=zh-CN&gl=CN&ceid=CN:zh-Hans", // 国际
+            "https://news.google.com/rss/headlines/section/topic/NATION?hl=zh-CN&gl=CN&ceid=CN:zh-Hans", // 国内
+            "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=zh-CN&gl=CN&ceid=CN:zh-Hans", // 财经
+            "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=zh-CN&gl=CN&ceid=CN:zh-Hans", // 科技
+            "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=zh-CN&gl=CN&ceid=CN:zh-Hans", // 娱乐
+            "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=zh-CN&gl=CN&ceid=CN:zh-Hans", // 体育
+            "https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=zh-CN&gl=CN&ceid=CN:zh-Hans", // 科学
+            "https://news.google.com/rss/headlines/section/topic/HEALTH?hl=zh-CN&gl=CN&ceid=CN:zh-Hans" // 健康
+        ];
 
+        // 状态变量
+        let map;
+        let markersGroup;
+        let activeNewsData = []; // 当前地图上展示的所有新闻
+
+        // ==========================================
+        // 初始化地图
+        // ==========================================
         function initMap() {
-            map = L.map('map', { zoomControl: false, minZoom: 2, maxZoom: 8, maxBounds: [[-90, -180], [90, 180]] }).setView([33, 45], 4); 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', { subdomains: 'abcd' }).addTo(map);
-            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            // 中心点偏向北半球
+            map = L.map('map', {
+                zoomControl: false,
+                worldCopyJump: true,
+                minZoom: 2
+            }).setView([30, 0], 3);
 
-            fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-                .then(res => res.json())
-                .then(data => {
-                    geojsonLayer = L.geoJSON(data, { style: featureStyle, onEachFeature: bindFeatureEvents }).addTo(map);
-                    markersLayer = L.layerGroup().addTo(map);
-                    
-                    fetchGoogleNews(true).then(() => {
-                        const loading = document.getElementById('loading');
-                        if(loading) {
-                            loading.style.opacity = '0';
-                            setTimeout(() => loading.remove(), 700);
-                        }
-                        setInterval(() => fetchGoogleNews(false), 180000); 
-                    });
-                })
-                .catch(err => {
-                    document.getElementById('loading-status').innerText = "底图加载失败，请检查网络。";
-                });
+            // 移动缩放控件到右上角
+            L.control.zoom({ position: 'topright' }).addTo(map);
+
+            // 使用纯白色、无标注的底图 (CartoDB Positron No Labels)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            markersGroup = L.layerGroup().addTo(map);
         }
 
-        // === 稳健的多级级联请求引擎 (Proxy Waterfall) ===
-        async function fetchGoogleNews(isInitialLoad = false) {
-            document.getElementById('last-sync-time').innerText = `正在连接新闻卫星节点...`;
-            
-            const searchQuery = encodeURIComponent("战争 OR 冲突 OR 空袭 OR 袭击 OR 导弹 OR 武装 OR 轰炸");
-            const rawUrl = `https://news.google.com/rss/search?q=${searchQuery}+when:1d&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`;
-            
-            let itemsToProcess = [];
-            let fetchSuccess = false;
+        // ==========================================
+        // NLP 与数据分析核心逻辑
+        // ==========================================
 
-            // 尝试 1: AllOrigins (包装为 JSON 防止 CORS)
-            try {
-                const res1 = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(rawUrl)}`);
-                if (res1.ok) {
-                    const data1 = await res1.json();
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(data1.contents, "text/xml");
-                    const items = xmlDoc.querySelectorAll("item");
-                    if (items.length > 0) {
-                        items.forEach(item => {
-                            itemsToProcess.push({
-                                title: item.querySelector("title")?.textContent || "",
-                                pubDate: item.querySelector("pubDate")?.textContent || "",
-                                link: item.querySelector("link")?.textContent || ""
-                            });
-                        });
-                        fetchSuccess = true;
+        // 根据文本匹配分类
+        function determineCategory(title, desc) {
+            const text = (title + " " + desc).toLowerCase();
+            for (const [key, cat] of Object.entries(CATEGORIES)) {
+                if (key === 'other') continue;
+                for (const keyword of cat.keywords) {
+                    if (text.includes(keyword.toLowerCase())) {
+                        return key;
                     }
-                }
-            } catch (e) {
-                console.warn("Proxy 1 (AllOrigins) 阻断，尝试下一个节点...");
-            }
-
-            // 尝试 2: rss2json
-            if (!fetchSuccess) {
-                try {
-                    const res2 = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rawUrl)}`);
-                    if (res2.ok) {
-                        const data2 = await res2.json();
-                        if (data2.status === 'ok' && data2.items.length > 0) {
-                            itemsToProcess = data2.items.map(i => ({ title: i.title, pubDate: i.pubDate, link: i.link }));
-                            fetchSuccess = true;
-                        }
-                    }
-                } catch (e) {
-                    console.warn("Proxy 2 (rss2json) 阻断，尝试下一个节点...");
                 }
             }
+            return 'other';
+        }
 
-            // 尝试 3: corsproxy.io (直接提取原生 XML)
-            if (!fetchSuccess) {
-                try {
-                    const res3 = await fetch(`https://corsproxy.io/?${encodeURIComponent(rawUrl)}`);
-                    if (res3.ok) {
-                        const xmlText = await res3.text();
-                        const parser = new DOMParser();
-                        const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                        const items = xmlDoc.querySelectorAll("item");
-                        if (items.length > 0) {
-                            items.forEach(item => {
-                                itemsToProcess.push({
-                                    title: item.querySelector("title")?.textContent || "",
-                                    pubDate: item.querySelector("pubDate")?.textContent || "",
-                                    link: item.querySelector("link")?.textContent || ""
-                                });
-                            });
-                            fetchSuccess = true;
-                        }
-                    }
-                } catch (e) {
-                    console.warn("所有公共代理节点均被浏览器的 CORS/AdBlock 阻断。");
+        // 提取地点，找不到则返回南极洲随机点
+        function determineLocation(title, desc) {
+            const text = title + " " + desc;
+            for (const [locName, coords] of Object.entries(LOCATIONS)) {
+                if (text.includes(locName)) {
+                    return { name: locName, lat: coords[0], lng: coords[1] };
                 }
             }
+            // 未识别地点 -> 南极洲 (纬度 -75 到 -85 之间随机，经度全范围随机)
+            return {
+                name: "未识别地点 (南极大陆)",
+                lat: -75 - Math.random() * 10,
+                lng: (Math.random() * 360) - 180
+            };
+        }
 
-            if (fetchSuccess && itemsToProcess.length > 0) {
-                let newEventsFound = false;
-                document.getElementById('api-status').innerText = "API CONNECTED";
-                document.getElementById('api-status').className = "text-[10px] text-green-500 font-bold animate-pulse";
+        // 获取距离现在的时间描述
+        function timeAgo(date) {
+            const minutes = Math.floor((new Date() - date) / 60000);
+            if (minutes < 1) return '刚刚';
+            if (minutes < 60) return `${minutes}分钟前`;
+            return `${Math.floor(minutes / 60)}小时${minutes % 60}分钟前`;
+        }
 
-                itemsToProcess.reverse().forEach(item => {
-                    const fullTitle = item.title;
-                    const pubDateStr = item.pubDate;
-                    const link = item.link;
-                    
-                    const splitIndex = fullTitle.lastIndexOf(" - ");
-                    const title = splitIndex > -1 ? fullTitle.substring(0, splitIndex).trim() : fullTitle;
-                    const source = splitIndex > -1 ? fullTitle.substring(splitIndex + 3).trim() : "谷歌新闻";
-                    
-                    if (processedNews.has(title)) return;
+        // ==========================================
+        // 渲染标记与交互
+        // ==========================================
 
-                    let matchedGeo = null;
-                    for (let geo of geoDictionary) {
-                        if (geo.keywords.some(kw => title.includes(kw))) {
-                            matchedGeo = geo;
-                            break;
-                        }
-                    }
+        function renderNewsOnMap(newsItems) {
+            markersGroup.clearLayers();
+            activeNewsData = newsItems;
 
-                    if (matchedGeo) {
-                        processedNews.add(title);
-                        newEventsFound = true;
-                        
-                        const offsetLat = matchedGeo.lat + (Math.random() - 0.5) * 1.5;
-                        const offsetLng = matchedGeo.lng + (Math.random() - 0.5) * 1.5;
+            if (newsItems.length === 0) {
+                alert("指定时间范围内没有发现任何新闻。");
+                return;
+            }
 
-                        let pubTime = new Date(pubDateStr.replace(/-/g, '/')).getTime();
-                        if (isNaN(pubTime)) pubTime = Date.now();
-
-                        processNewEvent({
-                            iso: matchedGeo.iso, name: matchedGeo.name, level: matchedGeo.level,
-                            title: title, source: source, link: link,
-                            lat: offsetLat, lng: offsetLng, pubTime: pubTime
-                        }, isInitialLoad);
-                    }
-                });
-
-                if (newEventsFound) renderMarkers();
-                document.getElementById('last-sync-time').innerText = `最后数据同步: ${new Date().toLocaleTimeString('zh-CN', { hour12: false })} (Google News API)`;
-
-                if (isInitialLoad && Object.keys(conflictData).length === 0) {
-                    injectFallbackData();
-                }
-
-            } else {
-                // 静默降级：一旦所有 API 彻底被封，无缝加载备用库，不在控制台抛红字 Error
-                document.getElementById('last-sync-time').innerText = "实时源连接受限，已自动切入内部情报系统";
-                document.getElementById('api-status').innerText = "OFFLINE - LOCAL INTEL";
-                document.getElementById('api-status').className = "text-[10px] text-yellow-500 font-bold";
+            // 为了避免同一个城市的点完全重合，加入随机偏移
+            newsItems.forEach((news, index) => {
+                const catInfo = CATEGORIES[news.category];
                 
-                if (isInitialLoad && Object.keys(conflictData).length === 0) {
-                    injectFallbackData();
-                }
-            }
-        }
-
-        // --- 防失联保底情报库 ---
-        function injectFallbackData() {
-            const fallbackEvents = [
-                { title: "以色列军方宣布对贝鲁特南郊发动精准空袭，目标为真主党指挥中心", iso: "LBN", name: "黎巴嫩", lat: 33.89, lng: 35.50, level: "major", source: "路透社", pubTime: Date.now() - 3600000 },
-                { title: "伊朗向以色列及周边美军基地发射多枚弹道导弹", iso: "IRN", name: "伊朗", lat: 35.68, lng: 51.38, level: "major", source: "法斯通讯社", pubTime: Date.now() - 7200000 },
-                { title: "特拉维夫防空警报骤响，铁穹系统进行多次拦截", iso: "ISR", name: "以色列", lat: 32.08, lng: 34.78, level: "major", source: "以色列时报", pubTime: Date.now() - 5400000 },
-                { title: "俄罗斯军队在库皮扬斯克方向集结，发动大规模攻势", iso: "RUS", name: "俄罗斯", lat: 49.71, lng: 37.60, level: "major", source: "塔斯社", pubTime: Date.now() - 14400000 },
-                { title: "乌克兰无人机对多瑙河沿岸能源设施发动袭击", iso: "UKR", name: "乌克兰", lat: 45.40, lng: 28.80, level: "general", source: "基辅独立报", pubTime: Date.now() - 18000000 },
-                { title: "也门胡塞武装再次在红海海域袭击商船及护航军舰", iso: "YEM", name: "也门", lat: 15.36, lng: 44.19, level: "general", source: "半岛电视台", pubTime: Date.now() - 8640000 }
-            ];
-
-            fallbackEvents.forEach(evt => {
-                const offsetLat = evt.lat + (Math.random() - 0.5) * 1.5;
-                const offsetLng = evt.lng + (Math.random() - 0.5) * 1.5;
-                processNewEvent({ ...evt, lat: offsetLat, lng: offsetLng, link: `https://news.google.com/search?q=${encodeURIComponent(evt.title)}` }, true);
-            });
-            renderMarkers();
-        }
-
-        function getTimeAgo(timestamp) {
-            const seconds = Math.floor((new Date() - timestamp) / 1000);
-            if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
-            if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`;
-            return `1 天前`;
-        }
-
-        function processNewEvent(event, isInitialLoad) {
-            if (!conflictData[event.iso]) {
-                conflictData[event.iso] = { name: event.name, level: event.level, news: [] };
-            } else {
-                if (event.level === 'major') conflictData[event.iso].level = 'major';
-                else if (event.level === 'general' && conflictData[event.iso].level === 'minor') conflictData[event.iso].level = 'general';
-            }
-            
-            conflictData[event.iso].news.unshift(event);
-            if (currentOpenCountry === event.iso) openSidebar(event.iso, event.name);
-
-            if (!isInitialLoad) showToast(event);
-        }
-
-        // === 渲染与交互 (彻底修复透明 Marker 漏洞) ===
-        function getFeatureInfo(feature) {
-            const props = feature.properties || {};
-            const iso = props["ISO3166-1-Alpha-3"] || props.ISO_A3 || props.iso_a3 || feature.id || "UNKNOWN";
-            return { iso, name: props.name || props.ADMIN || "未知地区" };
-        }
-
-        function featureStyle(feature) {
-            return { fillColor: configColors.default.fill, weight: 1, opacity: 0.8, color: configColors.default.border, fillOpacity: 0.3, className: 'map-country' };
-        }
-
-        function bindFeatureEvents(feature, layer) {
-            layer.on({
-                mouseover: (e) => { e.target.setStyle({ weight: 2, color: '#666', fillOpacity: 0.4 }); if (!L.Browser.ie && !L.Browser.edge) e.target.bringToFront(); },
-                mouseout: (e) => geojsonLayer.resetStyle(e.target),
-                click: (e) => { const info = getFeatureInfo(feature); openSidebar(info.iso, info.name); map.flyToBounds(e.target.getBounds(), { padding: [50, 50], maxZoom: 6, duration: 1.2 }); }
-            });
-        }
-
-        function renderMarkers() {
-            markersLayer.clearLayers();
-            Object.entries(conflictData).forEach(([iso, country]) => {
-                country.news.sort((a, b) => b.pubTime - a.pubTime);
+                // 抖动偏移量 (0.1 ~ 1度之间)
+                const jitterLat = (Math.random() - 0.5) * 1.5;
+                const jitterLng = (Math.random() - 0.5) * 1.5;
                 
-                country.news.forEach(item => {
-                    if (item.lat && item.lng) {
-                        const conf = configColors[item.level];
-                        // 修复：强制使用内联 style 直接赋予 Hex 色值，绕开 Tailwind CDN 的清洗策略
-                        const icon = L.divIcon({
-                            className: 'custom-div-icon',
-                            html: `<div style="width:14px; height:14px; border-radius:50%; background-color:${conf.fill}; box-shadow: 0 0 15px ${conf.shadow}; border: 2px solid rgba(255,255,255,0.8);" class="animate-pulse"></div>`,
-                            iconSize: [14, 14], iconAnchor: [7, 7]
-                        });
-                        const marker = L.marker([item.lat, item.lng], { icon }).addTo(markersLayer);
-                        
-                        marker.bindTooltip(`
-                            <div class="px-1 py-0.5 max-w-[200px]">
-                                <div class="text-[10px] font-bold mb-1 ${conf.text} uppercase">${item.source} · ${getTimeAgo(item.pubTime)}</div>
-                                <div class="text-xs text-gray-200 whitespace-normal leading-snug">${item.title}</div>
-                            </div>
-                        `, { className: 'bg-black border border-gray-700 rounded shadow-xl', direction: 'top' });
+                const finalLat = news.location.lat + jitterLat;
+                const finalLng = news.location.lng + jitterLng;
 
-                        marker.on('click', (e) => {
-                            L.DomEvent.stopPropagation(e);
-                            map.flyTo([item.lat, item.lng], 6, { duration: 1.2 });
-                            openSidebar(iso, country.name);
-                        });
-                    }
+                const color = catInfo.color;
+                
+                // 创建 HTML 图标
+                const icon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div class="glow-dot" style="background-color: ${color}; box-shadow: 0 0 12px ${color}, 0 0 20px ${color}; width: 14px; height: 14px;"></div>`,
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                });
+
+                const marker = L.marker([finalLat, finalLng], { icon: icon }).addTo(markersGroup);
+                
+                // 绑定点击事件打开侧边栏
+                marker.on('click', () => {
+                    openSidebar(news);
                 });
             });
         }
 
-        function openSidebar(iso, englishName) {
-            currentOpenCountry = iso;
-            const sidebar = document.getElementById('sidebar');
-            const list = document.getElementById('sidebar-news-list');
-            const data = conflictData[iso];
+        // ==========================================
+        // 侧边栏控制
+        // ==========================================
+        
+        const sidebar = document.getElementById('sidebar');
+        const sidebarContent = document.getElementById('sidebar-content');
+        const sidebarTitle = document.getElementById('sidebar-title');
+        const sidebarSubtitle = document.getElementById('sidebar-subtitle');
 
-            document.getElementById('sidebar-country-name').innerHTML = `
-                <div class="flex flex-col">
-                    <span class="flex items-center gap-3"><i class="fa-solid fa-crosshairs text-gray-500 text-xl"></i> ${data ? data.name : englishName}</span>
-                    <span class="text-xs text-gray-600 font-mono mt-1">ISO: ${iso} | LIVE INTEL</span>
-                </div>`;
+        function openSidebar(selectedNews) {
+            // 找出同一区域（或者同一类别如果需要）的新闻。这里简单展示被点击的新闻，并列出同一分类的其他近期新闻
+            sidebarTitle.textContent = selectedNews.location.name;
+            sidebarSubtitle.textContent = CATEGORIES[selectedNews.category].name + " · " + timeAgo(selectedNews.pubDate);
             
-            list.innerHTML = '';
+            // 组装 HTML
+            let html = `
+                <div class="mb-6">
+                    <span class="inline-block px-2 py-1 rounded text-xs text-white font-medium mb-3" style="background-color: ${CATEGORIES[selectedNews.category].color}">
+                        ${CATEGORIES[selectedNews.category].name}
+                    </span>
+                    <h3 class="text-xl font-bold text-gray-900 mb-2">${selectedNews.title}</h3>
+                    <p class="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-6">${selectedNews.desc.replace(/<[^>]+>/g, '') || '暂无详细描述。'}</p>
+                    <a href="${selectedNews.link}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm font-semibold">
+                        阅读原文 <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    </a>
+                </div>
+                <hr class="border-gray-100 mb-6">
+                <h4 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    近期相关 (${selectedNews.location.name})
+                </h4>
+            `;
 
-            if (data && data.news.length > 0) {
-                const conf = configColors[data.level];
-                document.getElementById('sidebar-status-indicator').style.backgroundColor = conf.fill;
-                document.getElementById('sidebar-status-indicator').style.boxShadow = `0 0 10px ${conf.shadow}`;
-                document.getElementById('sidebar-status-text').className = `text-xs font-black tracking-widest ${conf.text} uppercase`;
-                document.getElementById('sidebar-status-text').innerText = conf.label;
-
-                data.news.forEach(item => {
-                    const itemConf = configColors[item.level];
-                    list.innerHTML += `
-                        <div class="relative shrink-0 bg-gray-900/80 border border-gray-800 rounded-lg p-4 hover:bg-gray-800/80 transition group overflow-hidden">
-                            <div class="absolute left-0 top-0 bottom-0 w-1" style="background-color: ${itemConf.fill}"></div>
-                            <div class="flex justify-between items-start mb-3 pl-2">
-                                <span class="text-[11px] font-mono text-gray-400 bg-black/50 px-2 py-0.5 rounded flex items-center gap-1.5">
-                                    <i class="fa-regular fa-clock text-${itemConf.text.split('-')[1]}-500"></i> ${getTimeAgo(item.pubTime)}
-                                </span>
-                                <span class="text-[10px] uppercase font-bold text-gray-500">${item.source}</span>
+            // 查找同一个地点的其他新闻
+            const relatedNews = activeNewsData.filter(n => n.location.name === selectedNews.location.name && n !== selectedNews);
+            
+            if (relatedNews.length > 0) {
+                html += `<div class="space-y-4">`;
+                relatedNews.forEach(news => {
+                    html += `
+                        <div class="bg-gray-50 p-4 rounded-xl hover:bg-gray-100 transition cursor-pointer border border-gray-100" onclick="window.open('${news.link}', '_blank')">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="w-2 h-2 rounded-full" style="background-color: ${CATEGORIES[news.category].color}"></span>
+                                <span class="text-xs text-gray-500">${timeAgo(news.pubDate)}</span>
                             </div>
-                            <p class="text-sm text-gray-200 leading-relaxed font-medium pl-2">${item.title}</p>
-                            <a href="${item.link || `https://news.google.com/search?q=${encodeURIComponent(item.title)}`}" target="_blank" class="text-[10px] text-blue-500 hover:text-blue-400 mt-2 block pl-2 font-bold"><i class="fa-solid fa-arrow-up-right-from-square"></i> 查看原文报道</a>
+                            <h5 class="text-sm font-semibold text-gray-800 line-clamp-2">${news.title}</h5>
                         </div>
                     `;
                 });
+                html += `</div>`;
             } else {
-                document.getElementById('sidebar-status-indicator').style.backgroundColor = configColors.default.fill;
-                document.getElementById('sidebar-status-indicator').style.boxShadow = "none";
-                document.getElementById('sidebar-status-text').className = `text-xs font-bold tracking-widest ${configColors.default.text} uppercase`;
-                document.getElementById('sidebar-status-text').innerText = configColors.default.label;
-                list.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-48 text-gray-600 gap-4 bg-gray-900/30 rounded-lg border border-gray-800 border-dashed">
-                        <i class="fa-solid fa-shield-halved text-4xl opacity-50"></i>
-                        <p class="text-sm">该管辖区暂无冲突情报。</p>
-                    </div>`;
+                html += `<p class="text-sm text-gray-500 italic">20小时内该区域无其他新闻。</p>`;
             }
-            sidebar.classList.remove('sidebar-closed');
-            sidebar.classList.add('sidebar-open');
+
+            sidebarContent.innerHTML = html;
+            sidebar.classList.remove('translate-x-full');
         }
 
-        function closeSidebar() {
-            document.getElementById('sidebar').classList.add('sidebar-closed');
-            document.getElementById('sidebar').classList.remove('sidebar-open');
-            currentOpenCountry = null;
+        document.getElementById('close-sidebar').addEventListener('click', () => {
+            sidebar.classList.add('translate-x-full');
+        });
+
+        // ==========================================
+        // 数据获取 (真实 RSS)
+        // ==========================================
+
+        const statusText = document.getElementById('status-text');
+        const btnFetch = document.getElementById('btn-fetch-live');
+
+        // 真实抓取并解析 RSS
+        async function fetchLiveRss() {
+            btnFetch.disabled = true;
+            btnFetch.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>拉取与解析中...`;
+            statusText.textContent = "正在通过代理拉取谷歌新闻全板块，可能需要10-20秒...";
+
+            let allNews = [];
+            // 更新为20小时
+            const TWENTY_HOURS_MS = 20 * 60 * 60 * 1000;
+            const now = Date.now();
+
+            try {
+                // 使用公共 CORS 代理并发抓取所有板块 (如果部分不可用属于正常网络现象)
+                const promises = GOOGLE_NEWS_FEEDS.map(async (url) => {
+                    try {
+                        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+                        const response = await fetch(proxyUrl);
+                        if (!response.ok) return [];
+                        
+                        const data = await response.json();
+                        const parser = new DOMParser();
+                        const xml = parser.parseFromString(data.contents, "text/xml");
+                        
+                        // 兼容 RSS 2.0 和 Atom
+                        const items = Array.from(xml.querySelectorAll("item, entry"));
+                        
+                        return items.map(item => {
+                            const title = (item.querySelector("title")?.textContent || "").trim();
+                            
+                            // 更严谨的链接解析逻辑（应对多种复杂的 RSS 标签结构和空格污染）
+                            let link = "#";
+                            const linkNodes = item.querySelectorAll("link");
+                            for (const node of linkNodes) {
+                                const href = node.getAttribute("href")?.trim();
+                                const text = node.textContent?.trim();
+                                // 优先取包含 http 头的有效属性或文本值
+                                if (href && href.startsWith("http")) {
+                                    link = href;
+                                    break;
+                                } else if (text && text.startsWith("http")) {
+                                    link = text;
+                                    break;
+                                }
+                            }
+                            
+                            // 如果 link 解析失败，很多 RSS 会将链接放在 guid 或 id 标签中
+                            if (link === "#") {
+                                const guid = item.querySelector("guid, id")?.textContent?.trim();
+                                if (guid && guid.startsWith("http")) link = guid;
+                            }
+
+                            const desc = (item.querySelector("description, summary, content")?.textContent || "").trim();
+                            const pubDateStr = item.querySelector("pubDate, published, updated")?.textContent;
+                            const pubDate = new Date(pubDateStr);
+                            
+                            return { title, link, desc, pubDate };
+                        }).filter(item => {
+                            // 过滤: 有效时间且在过去20小时内
+                            return !isNaN(item.pubDate) && (now - item.pubDate.getTime()) <= TWENTY_HOURS_MS && item.pubDate.getTime() <= now;
+                        }).map(item => {
+                            // 归类与定位
+                            const category = determineCategory(item.title, item.desc);
+                            const location = determineLocation(item.title, item.desc);
+                            return { ...item, category, location };
+                        });
+                    } catch (e) {
+                        console.warn("RSS获取失败:", url, e);
+                        return [];
+                    }
+                });
+
+                const results = await Promise.all(promises);
+                results.forEach(res => allNews.push(...res));
+
+                if (allNews.length > 0) {
+                    renderNewsOnMap(allNews);
+                    statusText.textContent = `拉取成功！在最近20小时内找到 ${allNews.length} 条新闻`;
+                } else {
+                    statusText.textContent = `实时拉取完成，但各大板块最近20小时内无新内容。`;
+                    renderNewsOnMap([]);
+                }
+
+            } catch (err) {
+                statusText.textContent = "网络代理获取失败，请重试。";
+                renderNewsOnMap([]);
+            } finally {
+                btnFetch.disabled = false;
+                btnFetch.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>拉取最新谷歌新闻 (所有板块)`;
+            }
         }
 
-        function showToast(event) {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            const conf = configColors[event.level];
-            
-            toast.className = `toast-enter pointer-events-auto bg-gray-900 border border-gray-700 shadow-2xl rounded-lg overflow-hidden flex flex-col`;
-            toast.innerHTML = `
-                <div class="h-1 w-full" style="background-color: ${conf.fill}"></div>
-                <div class="p-4 cursor-pointer hover:bg-gray-800 transition" onclick="map.flyTo([${event.lat}, ${event.lng}], 6); setTimeout(() => openSidebar('${event.iso}', '${event.name}'), 1000);">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="w-2.5 h-2.5 rounded-full animate-ping absolute opacity-75" style="background-color: ${conf.fill}"></span>
-                        <span class="w-2.5 h-2.5 rounded-full relative" style="background-color: ${conf.fill}"></span>
-                        <span class="text-xs font-black ${conf.text} uppercase tracking-wider">NEW INTEL · ${event.name}</span>
-                        <span class="text-[10px] text-gray-500 font-mono ml-auto">刚刚发布</span>
-                    </div>
-                    <p class="text-sm text-gray-200 leading-snug">${event.title}</p>
-                </div>
-            `;
-            
-            container.appendChild(toast);
-            setTimeout(() => { toast.style.animation = 'slideInRight 0.5s reverse forwards'; setTimeout(() => toast.remove(), 500); }, 10000);
-        }
+        // ==========================================
+        // 启动执行
+        // ==========================================
+        window.onload = () => {
+            initMap();
+            // 绑定抓取按钮事件
+            btnFetch.addEventListener('click', fetchLiveRss);
+        };
     </script>
 </body>
 </html>
