@@ -1,2 +1,2 @@
-# Global-News
-Hot map of global news.
+# Global War News
+Hot map of global war news.
